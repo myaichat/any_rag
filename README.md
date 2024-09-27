@@ -115,3 +115,5 @@ rag_prompt:
   ```
   python bot.py config\mixed\mixed_test.yaml
   ```
+
+  Medium: https://medium.com/p/590fc51fa14e 
