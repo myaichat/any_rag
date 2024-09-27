@@ -1,27 +1,36 @@
-# any_cot
-Chain of Thought implementation using different API vendors
+# any_rag
+Speculative RAG (Rationale-Augmented Generation) using different API vendors
 
-inspiration: https://github.com/Jaimboh/Llamaberry-Chain-of-Thought-Reasoning-in-AI
+inspiration: https://replit.com/@MartinBowling/Speculative-RAG-with-Groq?v=1#main.py
 
 ### Groq test
 
 ```
-cot_models:
-  first_turn:
-      name: "llama-3.1-70b-versatile"
+
+rag_models:
+  generalist:
+      name: "llama-3.1-8b-instant"
       api: "groq"
       user_prompt: |        
-        {user_prompt}.      
-  followup:
-      name: "llama-3.1-70b-versatile"
+        {user_prompt}
+        
+  specialist:
+    - name: "mixtral-8x7b-32768"
       api: "groq"
-  synthesis:  
-      name: "llama-3.1-70b-versatile"
+    - name: "llama-3.1-70b-versatile"
+      api: "groq"      
+
+  evaluator:
+      name: "mixtral-8x7b-32768"
+      api: "groq"
+
+  final:
+      name: "mixtral-8x7b-32768"
       api: "groq"
 
 
-cot_prompt:
-  first_turn: |
+rag_prompt:
+  generalist: |
   ...
   ```
 
@@ -29,7 +38,7 @@ cot_prompt:
   ### Execute:
 
   ```
-  python bot.py config\groq\groq_test.yaml
+  python bot.py config\groq\doc.yaml
   ```
 
 
@@ -37,23 +46,30 @@ cot_prompt:
   (generated image prompt)
 
   ```
-  cot_models:
-  first_turn:
+rag_models:
+  generalist:
       name: "mistralai/Mistral-Nemo-Instruct-2407"
       api: "hugging_face"
       user_prompt: |        
         {user_prompt}
-        return a detailed description of updated  image prompt in <fused_image> tags.      
-  followup:
-      name: "mistralai/Mistral-Nemo-Instruct-2407"
-      api: "hugging_face"
-  synthesis:  
+        
+  specialist:
       name: "mistralai/Mistral-Nemo-Instruct-2407"
       api: "hugging_face"
 
+  evaluator:
+      name: "mistralai/Mistral-Nemo-Instruct-2407"
+      api: "hugging_face"
 
-cot_prompt:
-  first_turn: |
+  final:
+      name: "mistralai/Mistral-Nemo-Instruct-2407"
+      api: "hugging_face"
+
+is_complex: true
+num_of_drafts: 1
+
+rag_prompt:
+  generalist: |
   ...
   ```
 
@@ -68,23 +84,29 @@ cot_prompt:
 Groq + HF (Groq as synthesizer)
 
 ```
-cot_models:
-  first_turn:
+
+rag_models:
+  generalist:
       name: "mistralai/Mistral-Nemo-Instruct-2407"
       api: "hugging_face"
       user_prompt: |        
         {user_prompt}
-             
-  followup:
-      name: "mistralai/Mistral-Nemo-Instruct-2407"
-      api: "hugging_face"
-  synthesis:  
-      name: "llama-3.1-70b-versatile"
+        return a detailed description of updated  image prompt in <fused_image> tags.  
+  specialist:
+      name: "mixtral-8x7b-32768"
+      api: "groq"
+
+  evaluator:
+      name: "mixtral-8x7b-32768"
+      api: "groq"
+
+  final:
+      name: "mixtral-8x7b-32768"
       api: "groq"
 
 
-cot_prompt:
-  first_turn: |
+rag_prompt:
+  generalist: |
   ...
   ```
 
