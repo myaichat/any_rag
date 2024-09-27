@@ -1,0 +1,209 @@
+import os
+import asyncio
+
+from groq import AsyncGroq
+from typing import List, Tuple
+
+import re
+
+# Initialize Groq client
+client = AsyncGroq(api_key=os.environ.get("GROQ_API_KEY"))
+
+# Define models
+generalist_model = "llama-3.1-8b-instant"  # Fast model for initial query understanding and evaluation
+specialist_model = "mixtral-8x7b-32768"  # Large model with big context window for in-depth analysis
+
+# Prompts
+generalist_system_prompt = """You are a generalist AI assistant. Your task is to quickly determine if a query requires in-depth knowledge or context. Respond with 'Yes' if the query is knowledge-intensive or complex, and 'No' if it's a simple query that doesn't require additional information."""
+
+specialist_system_prompt = """You are a specialist AI assistant focused on retrieval-augmented generation. Your task is to generate a draft answer and rationale based on the given query and document. Be comprehensive and insightful in your response."""
+
+evaluator_system_prompt = """You are an evaluator AI assistant. Your task is to assess the quality of the generated drafts based on their relevance, accuracy, and comprehensiveness. Choose the best draft and provide a brief rationale for your choice. Be decisive and clear in your evaluation. Format your response as follows:
+Best Draft Number: [number]
+Rationale: [your rationale]
+"""
+
+final_response_prompt = """You are a highly capable AI assistant. Your task is to craft a final, polished response to the original query using the best draft selected by the evaluator. Enhance the draft as needed to ensure it fully addresses the query with accuracy, clarity, and completeness. Here's the information you need:
+
+Original Query: {query}
+Best Draft: {best_draft}
+Evaluator's Rationale: {rationale}
+
+Please provide a comprehensive and well-structured response that builds upon the best draft while addressing any points raised in the evaluator's rationale."""
+
+
+async def call_llm(model: str,
+                   messages: List[dict],
+                   temperature: float = 0.7,
+                   max_tokens: int = 4096) -> str:
+    """Generic function to call an LLM."""
+    response = await client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+    return response.choices[0].message.content
+
+
+async def generalist_llm(query: str) -> Tuple[bool, str]:
+    """Call the generalist LLM to determine if the query is knowledge-intensive."""
+    messages = [{
+        "role": "system",
+        "content": generalist_system_prompt
+    }, {
+        "role": "user",
+        "content": query
+    }]
+    response = await call_llm(generalist_model,
+                              messages,
+                              temperature=0.5,
+                              max_tokens=10)
+    is_complex = response.lower().strip() == 'yes'
+    return is_complex, f"Generalist ({generalist_model}) decision: {'Knowledge-intensive' if is_complex else 'Simple'}"
+
+
+async def specialist_llm(query: str, document: str) -> Tuple[str, str, str]:
+    """Call the specialist LLM to generate a draft and rationale."""
+    messages = [{
+        "role": "system",
+        "content": specialist_system_prompt
+    }, {
+        "role": "user",
+        "content": f"Query: {query}\n\nDocument:\n{document}"
+    }]
+    response = await call_llm(specialist_model,
+                              messages,
+                              temperature=0.8,
+                              max_tokens=2048)
+
+    # Split response into draft and rationale
+    parts = response.split("Rationale:", 1)
+    draft = parts[0].strip()
+    rationale = parts[1].strip() if len(
+        parts) > 1 else "No explicit rationale provided."
+
+    log = f"Specialist ({specialist_model}) generated a draft."
+    return draft, rationale, log
+
+
+async def evaluator_llm(
+        query: str,
+        drafts_and_rationales: List[Tuple[str, str]]) -> Tuple[int, str, str]:
+    """Call the generalist LLM to evaluate and select the best draft."""
+    drafts_text = "\n\n".join([
+        f"Draft {i+1}:\n{draft}\nRationale:\n{rationale}"
+        for i, (draft, rationale) in enumerate(drafts_and_rationales)
+    ])
+    messages = [{
+        "role": "system",
+        "content": evaluator_system_prompt
+    }, {
+        "role":
+        "user",
+        "content":
+        f"Query: {query}\n\nDrafts and Rationales:\n{drafts_text}"
+    }]
+    response = await call_llm(generalist_model,
+                              messages,
+                              temperature=0.3,
+                              max_tokens=512)
+
+    # Parse the response to extract the best draft number and rationale
+    lines = response.split('\n')
+    best_draft_num = int(
+        lines[0].split(':')[1].strip()) - 1  # Convert to 0-based index
+    rationale = '\n'.join(lines[1:]).strip()
+
+    log = f"Evaluator ({generalist_model}) selected Draft {best_draft_num + 1} as the best."
+    return best_draft_num, rationale, log
+
+
+async def final_response_llm(query: str, best_draft: str,
+                             rationale: str) -> Tuple[str, str]:
+    """Call the generalist LLM to craft the final response."""
+    messages = [{
+        "role":
+        "system",
+        "content":
+        final_response_prompt.format(query=query,
+                                     best_draft=best_draft,
+                                     rationale=rationale)
+    }, {
+        "role": "user",
+        "content": "Please provide the final response."
+    }]
+    response = await call_llm(generalist_model,
+                              messages,
+                              temperature=0.7,
+                              max_tokens=2048)
+    log = f"Final response crafted using the best draft and evaluator's rationale."
+    return response, log
+
+
+async def process_document(query: str, document: str) -> Tuple[str, str]:
+    """Process a single document with the specialist LLM."""
+    draft, rationale, _ = await specialist_llm(query, document)
+    return draft, rationale
+
+
+async def speculative_rag(query: str, documents: List[str]) -> Tuple[str, str]:
+    """Implement the Speculative RAG process."""
+    process_log = []
+
+    # Step 1: Determine if the query is knowledge-intensive
+    is_complex, gen_log = await generalist_llm(query)
+    process_log.append(gen_log)
+
+    if is_complex:
+        # Step 2: Generate drafts using the specialist LLM for each document
+        tasks = [process_document(query, doc) for doc in documents]
+        drafts_and_rationales = await asyncio.gather(*tasks)
+        process_log.append(
+            f"Specialist ({specialist_model}) generated {len(drafts_and_rationales)} drafts."
+        )
+
+        # Step 3: Evaluate and select the best draft
+        best_draft_num, eval_rationale, eval_log = await evaluator_llm(
+            query, drafts_and_rationales)
+        process_log.append(eval_log)
+
+        # Step 4: Craft final response using the best draft
+        best_draft = drafts_and_rationales[best_draft_num][0]
+        final_response, final_log = await final_response_llm(
+            query, best_draft, eval_rationale)
+        process_log.append(final_log)
+    else:
+        # For simple queries, use the generalist LLM to generate a response
+        messages = [{
+            "role":
+            "system",
+            "content":
+            "You are a helpful assistant. Please answer the following query concisely."
+        }, {
+            "role": "user",
+            "content": query
+        }]
+        final_response = await call_llm(generalist_model,
+                                        messages,
+                                        temperature=0.7,
+                                        max_tokens=512)
+        process_log.append(
+            f"Simple query: Generalist ({generalist_model}) provided the response."
+        )
+
+    return final_response, "\n".join(process_log)
+
+
+def read_markdown_file(file_obj) -> str:
+    """Read the contents of an uploaded Markdown file."""
+    if file_obj is None:
+        return ""
+    if isinstance(file_obj, str):
+        return file_obj  # If it's already a string, return it directly
+    if hasattr(file_obj, 'name'):
+        # If it's a file-like object with a 'name' attribute, read the file
+        with open(file_obj.name, 'r', encoding='utf-8') as f:
+            return f.read()
+    # If we can't handle the input, return an empty string
+    return ""

@@ -1,0 +1,50 @@
+
+rag_models:
+  generalist:
+      name: "llama-3.1-8b-instant"
+      api: "groq"
+      user_prompt: |        
+        {user_prompt}
+        return give deep and complex fused image prompt 
+  specialist:
+      name: "mixtral-8x7b-32768"
+      api: "groq"
+
+  evaluator:
+      name: "mixtral-8x7b-32768"
+      api: "groq"
+
+  final:
+      name: "mixtral-8x7b-32768"
+      api: "groq"
+
+
+rag_prompt:
+  generalist: |
+    You are a generalist AI assistant. Your task is to quickly determine if a query requires in-depth knowledge or context. 
+    Respond with 'Yes' if the query is knowledge-intensive or complex, and 'No' if it's a simple query that doesn't 
+    require additional information
+
+  specialist: |
+    You are a specialist AI assistant focused on retrieval-augmented generation. Your task is to generate a draft answer
+     and rationale based on the given query and document. Be comprehensive and insightful in your response.
+
+  evaluator: |
+    You are an evaluator AI assistant. Your task is to assess the quality of the generated drafts based on their relevance, 
+    accuracy, and comprehensiveness. Choose the best draft and provide a brief rationale for your choice. Be decisive and
+     clear in your evaluation. Format your response as follows:
+    Best Draft Number: [number]
+    Rationale: [your rationale]
+
+  final: |
+    You are a highly capable AI assistant. Your task is to craft a final, polished response to the original query using 
+    the best draft selected by the evaluator. Enhance the draft as needed to ensure it fully addresses the query with 
+    accuracy, clarity, and completeness. Here's the information you need:
+
+    Original Query: {query}
+    Best Draft: {best_draft}
+    Evaluator's Rationale: {rationale}
+
+    Please provide a comprehensive and well-structured response that builds upon the best draft while addressing any 
+    points raised in the evaluator's rationale.
+
