@@ -117,3 +117,5 @@ rag_prompt:
   ```
 
   Medium: https://medium.com/p/590fc51fa14e 
+  <br>
+  Podcast: https://www.youtube.com/watch?v=vtEwH2NGqtg
