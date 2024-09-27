@@ -80,7 +80,7 @@ rag_prompt:
   ```
 
 ### Mixed test
-Groq + HF (Groq as final)
+Groq + HF (HF as generalist)
 
 ```
 
