@@ -43,7 +43,6 @@ rag_prompt:
 
 
   ### Hugging face test
-  (generated image prompt)
 
   ```
 rag_models:
@@ -81,7 +80,7 @@ rag_prompt:
   ```
 
 ### Mixed test
-Groq + HF (Groq as synthesizer)
+Groq + HF (Groq as final)
 
 ```
 
