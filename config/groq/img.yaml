@@ -1,14 +1,17 @@
 
+
 rag_models:
   generalist:
       name: "llama-3.1-8b-instant"
       api: "groq"
       user_prompt: |        
         {user_prompt}
-        return fused image prompt in <fused_prompt>  tags  
+        return fused image prompt in <fused_prompt>  tags 
   specialist:
-      name: "mixtral-8x7b-32768"
+    - name: "mixtral-8x7b-32768"
       api: "groq"
+    - name: "llama-3.1-70b-versatile"
+      api: "groq"      
 
   evaluator:
       name: "mixtral-8x7b-32768"

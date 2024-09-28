@@ -1,24 +1,26 @@
 rag_models:
   generalist:
-      name: "mistralai/Mistral-7B-Instruct-v0.3"
+      name: "meta-llama/Llama-3.2-3B-Instruct"
       api: "hugging_face"
       user_prompt: |        
         {user_prompt}
         
   specialist:
-    - name: "mistralai/Mistral-Nemo-Instruct-2407"
+    - name: "meta-llama/Llama-3.2-3B-Instruct"
       api: "hugging_face"
+    - name: "meta-llama/Llama-3.2-3B-Instruct"
+      api: "hugging_face"      
 
   evaluator:
-      name: "mistralai/Mistral-Nemo-Instruct-2407"
+      name: "meta-llama/Llama-3.2-3B-Instruct"
       api: "hugging_face"
 
   final:
-      name: "mistralai/Mistral-Nemo-Instruct-2407"
+      name: "meta-llama/Llama-3.2-90B-Vision-Instruct"
       api: "hugging_face"
 
-is_complex: true
-num_of_drafts: 2
+is_complex: false
+num_of_drafts: 1
 
 rag_prompt:
   generalist: |

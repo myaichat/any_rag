@@ -37,6 +37,8 @@ apc.clients={}
 
 DOCS = ['text.txt']
 DOCS = ['code.txt']
+DOCS = ['storm_text.txt', 'medium_text.txt']
+DOCS = ['code_2.txt']
 console = Console()
        
 async def close_clients():
