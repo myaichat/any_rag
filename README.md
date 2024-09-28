@@ -119,3 +119,5 @@ rag_prompt:
   Medium: https://medium.com/p/590fc51fa14e 
   <br>
   Podcast: https://www.youtube.com/watch?v=vtEwH2NGqtg
+  <br>
+  Previous art: [Any_COT](https://github.com/myaichat/any_cot)
