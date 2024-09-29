@@ -1,4 +1,6 @@
 import os, sys, time
+from typing import List, Tuple
+from os.path import join
 import asyncio
 import yaml 
 import click
@@ -39,6 +41,8 @@ DOCS = ['text.txt']
 DOCS = ['code.txt']
 DOCS = ['storm_text.txt', 'medium_text.txt']
 DOCS = ['code_2.txt']
+DOCS = ['lesson_2.txt']
+DOCS = [join('lessons','L3_extended.txt')]
 console = Console()
        
 async def close_clients():
