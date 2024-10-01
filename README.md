@@ -4,7 +4,7 @@ Speculative RAG (Rationale-Augmented Generation) using different API vendors
 inspiration: https://replit.com/@MartinBowling/Speculative-RAG-with-Groq?v=1#main.py
 
 ### Groq test
-
+2 scecialists:  "mixtral-8x7b-32768" and "mixtral-8x7b-32768"
 ```
 
 rag_models:
