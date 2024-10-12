@@ -1,0 +1,179 @@
+Migrating from Autoagent to Custom Implementation for Blog Writing with Agent Reflection
+After automating blog creation with AutoGen module in "DeepLearning.AI Lesson 3 Revisited: How Agent Reflection Powers Comprehensive Blog Creation" I thought I'll keep experimenting and create custom Agen Reflection implementation removing AutoGEn dependency.
+AutoGen provides pre-built agents that assist in generating, reflecting, and optimizing content for my blog. However, as workflows become more complex and specialized, the need for a custom implementation becomes apparent.
+What is Agent Reflection?
+Agent Reflection is a technique where different agents, each with specialized tasks, work together to create, review, and refine content. Each agent reflects on the output of the previous one, providing feedback and suggesting improvements. This iterative process ensures that the final output is not only grammatically correct but also optimized for SEO, legally compliant, and ethically sound.
+The Pipeline for Blog Writing with Agent Reflection
+In this pipeline, a series of agents (Writer, Critic, SEO Reviewer, Legal Reviewer, Ethics Reviewer, Meta Summarizer) collaborate to produce a blog post. Here's an overview of the roles:
+Writer: Generates the initial draft of blog titles or content.
+Critic: Provides feedback on the content, focusing on clarity, engagement, and structure.
+Reviewers: Special agents for SEO, legal compliance, and ethical concerns review the content and suggest improvements.
+Meta Summarizer: Aggregates all the feedback and provides a final summary for refinement.
+
+Overview of the Autoagent-Based Script
+The Autoagent script defines multiple agents for content generation and reflection:
+Writer Agent: Responsible for generating the initial blog topics and refining them based on feedback.
+Critic Agent: Provides constructive feedback on the writer's output.
+SEO, Legal, and Ethics Reviewers: Each specialized agent reflects on the content from their respective fields, providing targeted feedback.
+Meta Reviewer: Aggregates feedback from all reviewers and provides final suggestions for the content.
+
+Autoagent-Based Script: Key Components
+Agent Creation
+import autogen
+
+# Create a Writer Agent
+writer = autogen.AssistantAgent(
+    name="Writer",
+    system_message="You are a writer tasked with generating blog topics including 'Introduction' and 'Conclusion'.",
+    llm_config={"model": "gpt-4o-mini"}
+)
+# Create a Critic Agent
+critic = autogen.AssistantAgent(
+    name="Critic",
+    llm_config={"model": "gpt-4o-mini"},
+    system_message="You are a critic tasked with reviewing the writer's work."
+)
+Generating Initial Response
+ask = f'''
+        Assuming blog title is: "{title}"
+        Write a list of 10 potential topics/headlines for future blog posts.
+       '''
+reply = writer.generate_reply(messages=[{"content": task, "role": "user"}])
+print("Initial Writer Response:", reply)
+Nested Review Process
+SEO_reviewer = autogen.AssistantAgent(
+    name="SEO Reviewer",
+    llm_config=llm_config,
+    system_message="You are an SEO reviewer optimizing content for search engines."
+)
+legal_reviewer = autogen.AssistantAgent(
+    name="Legal Reviewer",
+    llm_config=llm_config,
+    system_message="You are a legal reviewer ensuring the content complies with legal regulations."
+)
+
+ethics_reviewer = autogen.AssistantAgent(
+    name="Ethics Reviewer",
+    llm_config=llm_config,
+    system_message="You are an ethics reviewer ensuring the content is ethically sound."
+)
+
+# Initiate Nested Chats
+review_chats = [
+    {"recipient": SEO_reviewer, "message": reflection_message, "max_turns": 1},
+    {"recipient": legal_reviewer, "message": reflection_message, "max_turns": 1},
+    {"recipient": ethics_reviewer, "message": reflection_message, "max_turns": 1}
+]
+
+critic.register_nested_chats(review_chats, trigger=writer)
+Transitioning to a Custom Pipeline-Based Implementation
+The transition to a custom pipeline implementation allows us to break down the content creation process into a more structured and flexible workflow. Here's how the new custom system differs:
+Explicit Agent Definitions: Each agent has a specific role and task defined in a configuration file, making it easier to modify and extend.
+Dynamic Reflection: Reflection between agents happens in a dynamic, programmatically controlled way, ensuring that feedback is passed in a seamless, scalable manner.
+Custom Task Orchestration: We can orchestrate tasks like SEO review, legal compliance checks, and ethical considerations, all of which reflect the growing complexity of content creation workflows.
+
+Custom Pipeline Implementation: Key Steps
+Step 1: Define YAML Configuration for Agents and Tasks
+Instead of relying on Autoagent's internal system, we define tasks and agent roles through a custom YAML configuration file. This provides a flexible and clear way to manage agent behavior and tasks.
+YAML Configuration (topics.yaml)
+llm_config:
+  model: "gpt-4o-mini"
+
+vars:  
+  title: title
+
+task: |
+    Write a list of 5 potential blog topics/headlines, including "Introduction" and "Conclusion" for the blogpost titled: "{title}"
+
+agents:
+  Writer: 
+    system_message: |
+      You are a writer tasked with generating blog topics for the title '{title}'. Ensure each headline is concise and engaging.
+    tasks:
+      initial_task: |
+        Generate a list of 5 potential blog topics based on the title '{title}'.
+      revision_task: |
+        Revise the list based on feedback from the Critic agent.
+
+  Critic:
+    system_message: |
+      You are a critic. Provide constructive feedback on the blog titles created by the Writer agent.
+      
+  SEO Reviewer:
+    system_message: |
+      You are an SEO reviewer, optimizing content for search engines. Ensure titles are optimized with keywords.
+
+  Legal Reviewer:
+    system_message: |
+      You are a legal reviewer ensuring compliance with copyright and privacy laws.
+      
+  Ethics Reviewer:
+    system_message: |
+      You are an ethics reviewer. Ensure the content is ethically sound.
+      
+  Meta Summarizer:
+    system_message: |
+      Aggregate feedback from all reviewers and provide a final set of suggestions for the Writer.
+Step 2: Python Code to Execute the Custom Pipeline
+The custom implementation imports the pipeline, loads the configuration, and runs the agents in sequence.
+Execute Pipeline (run_pipeline.py)
+import yaml
+from os.path import join
+def import_pipeline(pipeline_name):
+    """Dynamically import pipeline module."""
+    file_path = join("pipeline", pipeline_name + ".py")
+    spec = importlib.util.spec_from_file_location("pipeline", file_path)
+    pipeline = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(pipeline)
+    return pipeline
+def execute_pipeline(title, pipeline_name, config_file):
+    """Run the custom blog pipeline."""
+    with open(config_file, 'r') as file:
+        config = yaml.safe_load(file)
+
+    pipeline = import_pipeline(pipeline_name)
+    
+    # Execute tasks with agents
+    response = []
+    for task in pipeline.chats:
+        agent = task['agent']
+        action_method = getattr(agent, task['action'])
+        result = action_method(**task.get('kwargs', {}))
+        response.append(result)
+    
+    return response
+
+# Example Usage
+if __name__ == '__main__':
+    title = "Using Agent Reflection for Writing a Blog"
+    final_response = execute_pipeline(title, "blog_writer", "config/topics.yaml")
+    print("Final Response:", final_response)
+Step 3: The Python Pipeline
+The pipeline manages the orchestration of agents to ensure each step (from writing to reflection) runs smoothly.
+Custom Python Pipeline (blog_writer.py)
+from agents import Writer, Critic, Reviewer, Summarizer
+writer = Writer()
+critic = Critic()
+seo_reviewer = Reviewer("SEO Reviewer")
+legal_reviewer = Reviewer("Legal Reviewer")
+ethics_reviewer = Reviewer("Ethics Reviewer")
+meta_summarizer = Summarizer()
+chats = [
+    {"agent": writer, "action": "generate_reply", "kwargs": {"task_name": "initial_task"}},
+    {"agent": critic, "action": "reflect", "add_history_from": [writer]},
+    {"agent": seo_reviewer, "action": "reflect", "add_history_from": [writer]},
+    {"agent": legal_reviewer, "action": "reflect", "add_history_from": [writer]},
+    {"agent": ethics_reviewer, "action": "reflect", "add_history_from": [writer]},
+    {"agent": meta_summarizer, "action": "summarize", "add_history_from": [writer, seo_reviewer, legal_reviewer, ethics_reviewer]}
+]
+Final Output
+The output from running the pipeline provides a refined set of blog titles, which have been optimized for SEO, legally vetted, and ethically sound.
+╭─ Final Blog Titles: ───────────────────────────────────────────────────────────────────────────────────────────────╮
+│ 1. Introduction: The Role of Agent Reflection in AI-Powered Blog Writing                                             │
+│ 2. Understanding the Benefits of Multi-Agent Collaboration in Content Creation                                       │
+│ 3. SEO Optimization and Compliance: How Agent Reflection Enhances Blog Quality                                       │
+│ 4. Ethical and Legal Considerations in Automated Content Creation                                                    │
+│ 5. Conclusion: The Future of AI-Powered Blogging with Agent Reflection                                               │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+Conclusion
+Agent Reflection represents a significant advancement in the automation of content creation in my case. By leveraging multiple agents with specialized tasks, I can ensure that the final output is optimized, compliant, and engaging for readers. Whether you're a solo writer or part of a larger organization, this method can help streamline the content creation process and produce high-quality work efficiently.

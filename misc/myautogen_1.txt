@@ -1,0 +1,328 @@
+Dissecting AutoGen: AI Agentic Design Patterns example
+I was inspired but DeepLearning.AI lecture about agentic workflow "Planning and Stock Report Generation". Here I try to Xray/trace it and see how AutoGen implements the workflow.
+Source script
+import autogen
+llm_config={"model": "gpt-4o-mini"}
+
+task = "Write a blogpost about the stock price performance of "\
+"Nvidia in the past month. Today's date is 2024-04-23."
+
+user_proxy = autogen.ConversableAgent(
+    name="Admin",
+    system_message="Give the task, and send "
+    "instructions to writer to refine the blog post.",
+    code_execution_config=False,
+    llm_config=llm_config,
+    human_input_mode="ALWAYS",
+)
+
+planner = autogen.ConversableAgent(
+    name="Planner",
+...
+)
+
+engineer = autogen.AssistantAgent(
+    name="Engineer",
+)
+
+executor = autogen.ConversableAgent(
+  name="Executor",
+...
+)
+
+writer = autogen.ConversableAgent(
+    name="Writer",
+...
+)
+
+groupchat = autogen.GroupChat(
+agents=[user_proxy, engineer, writer, executor, planner],
+messages=[],
+max_round=10,
+)
+manager = autogen.GroupChatManager(
+    groupchat=groupchat, llm_config=llm_config
+)
+
+try:
+    groupchat_result = user_proxy.initiate_chat(
+        manager,
+        message=task,
+    )
+Tracer decorator
+In order to trace function entry we need a decorator
+def trace(func):
+    def wrapper(*args, **kwargs):
+       
+        
+        class_name = args[0].__class__.__name__
+        method_name = func.__name__        
+        branch=apc.tree['calling']
+        apc.depth += 1
+        apc.call_id +=1
+
+        if method_name == 'create':
+            pp(args)
+            pp(kwargs)
+            agent=kwargs['agent'].name
+            message=kwargs['messages'][0]['content'][:30]
+            params=f'{agent}, {message}'
+            #e()
+
+        branch['calling'][apc.call_id]={'name': f'{class_name}.{method_name} ({params})','depth':apc.depth,'calling':{},'caller':apc.depth-1}
+       
+        print("Before the function runs.", apc.depth, class_name, method_name)
+
+        print(f"Method '{class_name}.{method_name}' is about to be called.")
+        result = func(*args, **kwargs)
+        print(f"Method '{class_name}.{method_name}' has finished execution.")
+        apc.depth -= 1
+        return result
+    return wrapper
+Tracking results
+After decorating all important class methods in AutoGen editable install it produced following results.
+
+Each call to autogen.ConversableAgent() in the script corresponds to ConversableAgent.__init__(<agent name>) in the trace log. Following the initialization, the ConversableAgent.register_reply(Agent, func) calls effectively register pairs of agents and their associated reply functions. These pairs are likely stored in a list or dictionary, allowing the agent to later scan through them and match specific triggers with the appropriate functions.
+Agent Initialization:
+When an agent like Admin, Planner, or Writer is instantiated, it triggers the ConversableAgent.__init__(<agent name>) call.
+This step sets up the agent's identity and prepares it to handle various tasks by registering reply functions.
+
+Function Registration:
+After initialization, a series of calls like ConversableAgent.register_reply(Agent, func) are made. These register different functions that the agent will use to respond to messages or actions later on.
+These functions might handle actions such as processing tool calls, checking for message termination, or interacting with other agents.
+For example, ConversableAgent.register_reply(Agent, a_generate_tool_calls_reply) sets up a function to process tool-related tasks when needed.
+
+Function Mapping:
+Each register_reply call stores a pair [Agent, func], linking an agent to a specific function. This is likely stored in a list or dictionary within the agent object.
+When the agent receives a message or is triggered by an event, it can scan through this list of pairs, find the appropriate function, and execute it.
+The stored functions might be triggered based on the nature of the message, agent role, or specific workflow stage.
+
+Chat Init
+Now this code is getting executed
+groupchat_result = user_proxy.initiate_chat(
+            manager,
+            message=task,
+        )
+
+Breakdown
+Admin Initiates the Chat:
+Admin (User Proxy) starts by sending the task to the GroupChatManager.
+
+Admin Sends the Task:
+The Admin agent generates an initial message: "Write a blogpost about the Nvidia stock price performance."
+
+ConversableAgent.generate_init_message(Admin: "Write a blogpost about the")
+  ConversableAgent._handle_carryover()
+ConversableAgent.send(Admin->manager, "Write a blogpost about the")
+  ConversableAgent._process_message_before_send(Admin: recipient: manager, "Write a blogpost about the")
+  ConversableAgent._append_oai_message(Admin: "Write a blogpost about the")
+GroupChatManager Receives the Message:
+The GroupChatManager processes the message sent by the Admin agent and prepares to forward it to the relevant agent.
+
+GroupChatManager.receive(manager<--Admin "Write a blogpost about the")
+  GroupChatManager._process_received_message(manager: sender: Admin, "Write a blogpost about the")
+    GroupChatManager._append_oai_message(manager: "Write a blogpost about the")
+    GroupChatManager._print_received_message(manager: Admin, "Write a blogpost about the")
+Message Forwarded to Agents:
+The GroupChatManager now forwards the task message to the Engineer, Writer, Executor, and Planner in preparation for them to act based on their roles:
+
+GroupChatManager.generate_reply(manager: messages: Write a blogpost about the, sender: Admin)
+
+
+  # Engineer receives task
+
+
+  # Writer receives task
+
+
+  # Executor receives task
+
+
+  # Planner receives task
+
+GroupChatManager Selects Next Speaker:
+The GroupChatManager evaluates which agent should speak next. In this case, it selects the Writer agent to make the first attempt at writing the blog post.
+
+GroupChat.select_speaker(group_chat: last_speaker: Admin)
+
+
+  # The system selects Writer as the next speaker
+
+Writer Generates Blog Post:
+The Writer agent receives the instruction and begins the process of generating a blog post about Nvidia's stock price performance.
+
+At this point, the Writer agent has generated the first attempt at the blog post, and the conversation can continue based on further instructions or refinements.
+Key Highlight: Internal GroupChat for Speaker Selection
+During the speaker selection process, the checking_agent and the speaker_selection_agent collaborate through an internal GroupChat. This allows for a more structured and autonomous decision-making process to select the appropriate next agent to act. Here's how it works:
+Checking Agent Starts Speaker Selection:
+
+The checking_agent initiates the speaker selection process. To do this, an internal GroupChat is created. This chat is responsible for selecting the next agent to act in the conversation based on the context, task requirements, and allowed transitions.
+
+GroupChat.select_speaker(group_chat: last_speaker: Admin)
+  GroupChat._prepare_and_select_agents(group_chat: Admin)
+2. Internal GroupChat Manages Selection:
+The GroupChat prepares the agents and selects the next speaker. This internal GroupChat contains the logic to evaluate the conversation's progress and the current state of the task. It determines which agent should speak next based on the defined rules, such as allowed or disallowed transitions between agents.
+
+GroupChat._auto_select_speaker(group_chat: last_speaker: Admin, selector: manager, "Write a blogpost about the")
+3.  Speaker Selected by Internal GroupChat:
+Once the internal GroupChat evaluates all the factors, it selects the appropriate agent. In this case, the Writer is selected to act next and proceed with generating the blog post.
+
+Key Agents in the Interaction:
+Checking Agent:
+Its role is to evaluate the situation and check which agent should take the next turn based on the current state of the conversation.
+
+Speaker Selection Agent:
+This agent is responsible for actually selecting the next speaker (agent) in the conversation. It receives input from the checking_agent and decides who should proceed next based on the task at hand, the conversation's progress, and any pre-set rules or constraints (such as allowed/disallowed transitions).
+
+Interaction Breakdown:
+Checking Agent Evaluates the Context:
+
+The checking_agent evaluates the current state of the conversation. It looks at the messages exchanged so far, the task that needs to be completed, and any other contextual factors (e.g., what the previous agent did or said).
+The checking_agent also refers to predefined constraints that control which agents are allowed to follow each other. These constraints ensure that the conversation follows a logical flow.
+
+ConversableAgent.register_reply(checking_agent: ConversableAgent)
+ConversableAgent._prepare_chat(checking_agent: speaker_selection_agent)
+Checking Agent Hands Over to Speaker Selection Agent:
+After evaluating the situation, the checking_agent calls the speaker_selection_agent. This agent is responsible for determining the next speaker.
+At this point, the speaker_selection_agent will use the information provided by the checking_agent and any pre-set rules to make its decision.
+
+ConversableAgent._prepare_chat(speaker_selection_agent: checking_agent)
+Speaker Selection Agent Chooses the Next Speaker:
+The speaker_selection_agent then selects the most appropriate agent to speak next based on the current context and agen transition rules and hands over control to that agent. (OpenAI gpt-40-mini model is used)
+
+GroupChat._process_speaker_selection_result(group_chat: last_speaker: Admin, [AGENT SELECTED]Writer)
+The conversation proceeds with the selected speaker (the Writer):
+ConversableAgent.generate_reply(Writer: messages: [], sender: manager)
+Takeaway
+It's a lot, I know. For what they do in that lecture feels like overkill. How would simple flow look like.
+Steps to Simplify the Flow:
+Retain the Core Functionality:
+Keep only the essential functions: initiating the chat, message handling, and speaker selection.
+The key agents (User Proxy, Planner, Engineer, Writer, Executor) should focus solely on their specific roles (e.g., task initiation, planning, writing code, etc.).
+
+Remove Complex Dependency Management:
+Instead of relying on the autogen module's internal functions (such as managing multiple layers of message passing and context handling), simplify it by using direct function calls and standard message handling between agents.
+
+Simplify Speaker Selection Logic:
+The speaker selection can be simplified by maintaining a basic flow of allowed transitions between agents. You don't need to rely on advanced tools or dynamic decision-making features from autogen.
+Define a simple set of rules: "Who can speak after whom?" and ensure that transitions follow the task's logical order.
+
+Focus on the Core Conversation Flow:
+The core flow of the conversation remains: User Proxy initiates the task, the Planner determines the steps, the Engineer writes the code, the Executor runs it, and the Writer produces the final content. The conversation manager (or a simplified group chat manager) ensures that each agent acts when necessary.
+You can reduce the interaction logic to basic function calls that pass messages between agents
+
+Key Actions for Simplification:
+Message Passing:
+Instead of complex nested messaging, focus on a simple system where each agent receives a message, processes it, and hands it off to the next agent in the sequence.
+
+Manual Control Over Agent Transitions:
+Instead of automating transitions based on complex rules, you can manually specify the next agent in the flow. For example:
+After the Planner finishes, the system passes control to the Engineer.
+After the Engineer writes code, control is passed to the Executor, and so on.
+
+Reduce the Role of Manager:
+You can reduce the GroupChatManager's role to simply coordinating the transitions between agents based on the current conversation stage. It will no longer need to manage complex context handling or trigger-based behavior.
+
+Summary of Simplified Flow:
+Initiate the Conversation:
+The User Proxy (Admin) initiates the task, such as "Write a blog post about Nvidia's stock performance."
+
+Task Breakdown by Planner:
+The Planner agent receives the task, breaks it into actionable steps (e.g., retrieve data, analyze trends), and passes the next task to the Engineer.
+
+Code Writing by Engineer:
+The Engineer writes code or scripts needed to fulfill the task (e.g., retrieve stock data using Python) and hands it off to the Executor.
+
+Execution of Code:
+The Executor runs the code, retrieves the data, and passes the result back to the Planner (for review) or the Writer.
+
+Content Generation by Writer:
+The Writer agent produces the blog post or content based on the analyzed data and completes the task.
+
+How to Achieve This Without autogen:
+Key Agents:
+Keep the main agents: User Proxy, Planner, Engineer, Executor, and Writer.
+
+Message Flow:
+Streamline message passing between agents to simple function calls that simulate conversation (i.e., "Task received", "Step completed", "Next agent takes over").
+
+Simplified Speaker Selection:
+Define clear rules for transitions, such as:
+Planner → Engineer
+Engineer → Executor
+Executor → Writer
+
+This avoids complex selection algorithms and simply progresses the task through predefined steps.
+Simplified Trace with Essential Transitions:
+This trace focuses only on the key transitions that are necessary to follow the simplified conversation flow, excluding extra details such as unnecessary system messages and internal processing that are not critical for replicating the flow.
+  1. Agent Initialization:
+   ConversableAgent.__init__(Admin)
+   ConversableAgent.__init__(Planner)
+   AssistantAgent.__init__(Engineer)
+   ConversableAgent.__init__(Executor)
+   ConversableAgent.__init__(Writer)
+
+2. GroupChat and GroupChatManager Setup:
+   GroupChat.__post_init__()
+   GroupChatManager.__init__()
+     GroupChatManager.__init__(manager)
+
+3. Conversation Initiation by Admin:
+   ConversableAgent.initiate_chat(Admin: manager)
+     ConversableAgent.send(Admin->manager, "Write a blogpost about the")
+
+4. GroupChatManager Receives and Processes the Message:
+   GroupChatManager.receive(manager<--Admin "Write a blogpost about the")
+     GroupChatManager.generate_reply(manager: messages: Write a blogpost about the, sender: Admin)
+       GroupChatManager.run_chat(manager: messages: Write a blogpost about the, sender: Admin)
+
+5. Sequential Message Forwarding to Agents:
+   GroupChatManager.send(manager->Engineer, "Write a blogpost about the")
+     AssistantAgent.receive(Engineer<--manager "Write a blogpost about the")
+
+   GroupChatManager.send(manager->Writer, "Write a blogpost about the")
+     ConversableAgent.receive(Writer<--manager "Write a blogpost about the")
+
+   GroupChatManager.send(manager->Executor, "Write a blogpost about the")
+     ConversableAgent.receive(Executor<--manager "Write a blogpost about the")
+
+   GroupChatManager.send(manager->Planner, "Write a blogpost about the")
+     ConversableAgent.receive(Planner<--manager "Write a blogpost about the")
+
+6. Speaker Selection Logic:
+   GroupChat.select_speaker(group_chat: last_speaker: Admin)
+     GroupChat._auto_select_speaker(group_chat: last_speaker: Admin, selector: manager, "Write a blogpost about the")
+
+7. Final Agent Processing (Writer Writes Blog Post):
+   ConversableAgent.generate_reply(Writer: messages: [], sender: manager)
+     ConversableAgent.check_termination_and_human_reply(Writer<-manager, "Write a blogpost about the")
+     ConversableAgent.generate_oai_reply(Writer, No args)
+       ConversableAgent._generate_oai_reply_from_client(Writer: OpenAIWrapper, "Writer.Please write blogs in markdown")
+         OpenAIWrapper.create(Writer, Writer.Please write blogs in markdown)
+Key Points in This Simplified Trace:
+Agent Initialization:
+The trace begins with the initialization of each key agent: Admin, Planner, Engineer, Executor, and Writer.
+
+GroupChatManager Setup:
+The GroupChatManager is initialized, which will manage the interaction between the agents and control the flow of conversation.
+
+Conversation Initiation:
+The Admin agent initiates the conversation by sending the task (e.g., "Write a blogpost about Nvidia's stock price performance") to the GroupChatManager.
+
+Message Processing:
+The GroupChatManager receives the message, processes it, and forwards it to the appropriate agents in sequence: Engineer, Writer, Executor, and Planner.
+
+Speaker Selection:
+After processing the messages, the GroupChatManager selects the next speaker based on the conversation flow. In this case, the selection process determines that the Writer will act next.
+
+Final Task Execution:
+The Writer agent writes the blog post, completes the task, and generates the final output (e.g., using an internal system like OpenAI).
+
+Why This Simplified Trace Works:
+Minimal Transitions: This trace only includes the essential transitions needed to replicate the conversation flow, focusing on the main actions between the agents and the manager.
+Core Steps: It highlights the main steps: agent initialization, message handling, speaker selection, and final task execution, without any unnecessary internal details or system messages.
+Replicable Flow: By simplifying the process down to these core function calls, you can more easily replicate this flow when removing dependencies, such as the autogen module.
+
+Conclusion
+In this article, we explored how to manage a multi-agent conversation system, focusing on key elements such as task initiation, message handling, speaker selection, and agent interactions. By breaking down complex interactions into simpler, essential transitions, we illustrated how agents like the User Proxy (Admin), Planner, Engineer, Executor, and Writer can work together to accomplish tasks, such as generating a blog post based on stock price performance.
+We began by examining the traditional flow, leveraging the autogen module to handle multi-agent interactions. However, to streamline the process and remove unnecessary dependencies, we demonstrated how to simplify the flow while retaining the core functionality.

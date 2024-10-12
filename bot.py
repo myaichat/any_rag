@@ -37,12 +37,17 @@ e=sys.exit
 
 apc.clients={}
 
-DOCS = ['text.txt']
+
 DOCS = ['code.txt']
 DOCS = ['storm_text.txt', 'medium_text.txt']
 DOCS = ['code_2.txt']
 DOCS = ['lesson_2.txt']
 DOCS = [join('lessons','L3_extended.txt')]
+DOCS = ['meltdown.txt']
+DOCS = [join('misc','blog_writer.txt')]
+DOCS = [join('misc','autogen.txt')]
+DOCS = [join('misc','reflection.txt')]
+DOCS = [join('misc','myautogen_1.txt')]
 console = Console()
        
 async def close_clients():

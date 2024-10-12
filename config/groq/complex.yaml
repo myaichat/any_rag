@@ -6,7 +6,7 @@ rag_models:
       api: "groq"
       user_prompt: |        
         {user_prompt}
-        
+        return fused image prompt in <fused_prompt>  tags
   specialist:
     - name: "mixtral-8x7b-32768"
       api: "groq"
@@ -52,6 +52,6 @@ rag_prompt:
 
     Please provide a comprehensive and well-structured response that builds upon the best draft while addressing any 
     points raised in the evaluator's rationale 
-     Return answer in <complex_answer> tags.
+    
 
 
