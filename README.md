@@ -4,7 +4,7 @@ Speculative RAG (Rationale-Augmented Generation) using different API vendors
 inspiration: https://replit.com/@MartinBowling/Speculative-RAG-with-Groq?v=1#main.py
 
 ### Groq test
-
+2 scecialists:  "mixtral-8x7b-32768" and "llama-3.1-70b-versatile"
 ```
 
 rag_models:
@@ -53,7 +53,7 @@ rag_models:
         {user_prompt}
         
   specialist:
-      name: "mistralai/Mistral-Nemo-Instruct-2407"
+    - name: "mistralai/Mistral-Nemo-Instruct-2407"
       api: "hugging_face"
 
   evaluator:
@@ -86,7 +86,7 @@ Groq + HF (HF as generalist)
 
 rag_models:
   generalist:
-      name: "mistralai/Mistral-Nemo-Instruct-2407"
+    - name: "mistralai/Mistral-Nemo-Instruct-2407"
       api: "hugging_face"
       user_prompt: |        
         {user_prompt}
